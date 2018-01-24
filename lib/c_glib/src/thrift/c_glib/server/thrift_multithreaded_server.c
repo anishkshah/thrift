@@ -16,44 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-#include <thrift/c_glib/server/thrift_simple_server.h>
+#include <sys/sysinfo.h>
+#include <thrift/c_glib/server/thrift_multithreaded_server.h>
 #include <thrift/c_glib/transport/thrift_transport_factory.h>
 #include <thrift/c_glib/protocol/thrift_protocol_factory.h>
 #include <thrift/c_glib/protocol/thrift_binary_protocol_factory.h>
-#include <libcpuid.h>
-
-static gint thrift_multithreaded_get_cores_count()
-{
-    struct cpu_raw_data_t raw;
-    struct cpu_id_t data;
-    gint cores_count = 0;
-
-    cpuid_get_raw_data(&raw);
-    cpu_identify(&raw, &data);
-
-    cores_count = data.num_cores;
-    return cores_count;
-}
 
 G_DEFINE_TYPE(ThriftMultithreadedServer, thrift_multithreaded_server, THRIFT_TYPE_SERVER)
 
 static void thrift_multithreaded_worker_function(gpointer *arg)
 {
-  ThriftTransport *t = NULL;
+  ThriftMultithreadedPoolArg *input = NULL;
+  ThriftTransport *transport = NULL;
+  ThriftServer *server = NULL;
   ThriftTransport *input_transport = NULL, *output_transport = NULL;
   ThriftProtocol *input_protocol = NULL, *output_protocol = NULL;
   GError *process_error = NULL;
 
   if(arg == NULL) return;
-  
-  t = (ThriftTransport *)arg;
+
+  input = (ThriftMultithreadedPoolArg *)arg;
+  transport = input->transport;
+  server = input->server;
 
   input_transport = THRIFT_TRANSPORT_FACTORY_GET_CLASS (server->input_transport_factory)
-                    ->get_transport (server->input_transport_factory, t);
+                    ->get_transport (server->input_transport_factory, transport);
 
   output_transport = THRIFT_TRANSPORT_FACTORY_GET_CLASS (server->output_transport_factory)
-                     ->get_transport (server->output_transport_factory, t);
+                     ->get_transport (server->output_transport_factory, transport);
 
   input_protocol = THRIFT_PROTOCOL_FACTORY_GET_CLASS (server->input_protocol_factory)
                    ->get_protocol (server->input_protocol_factory, input_transport);
@@ -84,6 +74,7 @@ static void thrift_multithreaded_worker_function(gpointer *arg)
   THRIFT_TRANSPORT_GET_CLASS (output_transport)->close (output_transport,
                                                         NULL);
 
+  g_free(arg);
 }
 
 gboolean
@@ -91,7 +82,9 @@ thrift_multithreaded_server_serve (ThriftServer *server, GError **error)
 {
   ThriftTransport *t = NULL;
   ThriftMultithreadedServer *tms = THRIFT_MULTITHREADED_SERVER(server);
+  ThriftMultithreadedPoolArg *arg = g_malloc0_n(1, sizeof(ThriftMultithreadedPoolArg));
   GError *threadpool_error = NULL;
+
 
   g_return_val_if_fail (THRIFT_IS_MULTITHREADED_SERVER (server), FALSE);
   g_return_val_if_fail (tms->worker_pool != NULL, FALSE);
@@ -105,7 +98,9 @@ thrift_multithreaded_server_serve (ThriftServer *server, GError **error)
 
       if (t != NULL && tms->running)
       {
-        g_thread_pool_push( tms->worker_pool, t, &threadpool_error);
+        arg->server = server;
+        arg->transport = t;
+        g_thread_pool_push( tms->worker_pool, arg, &threadpool_error);
 
         if (threadpool_error != NULL)
         {
@@ -126,21 +121,21 @@ thrift_multithreaded_server_serve (ThriftServer *server, GError **error)
 }
 
 void
-thrift_simple_server_stop (ThriftServer *server)
+thrift_multithreaded_server_stop (ThriftServer *server)
 {
   g_return_if_fail (THRIFT_IS_MULTITHREADED_SERVER (server));
   (THRIFT_MULTITHREADED_SERVER (server))->running = FALSE;
+  g_thread_pool_free((THRIFT_MULTITHREADED_SERVER (server))->worker_pool, TRUE, FALSE);
 }
 
 static void
 thrift_multithreaded_server_init (ThriftMultithreadedServer *tms)
 {
   ThriftServer *server = THRIFT_SERVER(tms);
-  gint cores_count = thrift_multithreaded_get_cores_count();
+  gint cores_count = get_nprocs_conf();
   tms->running = FALSE;
-  tms->worker_pool == NULL;
 
-  tms->worker_pool = g_thread_pool_new (thrift_multithreaded_worker_function,
+  tms->worker_pool = g_thread_pool_new ((GFunc)thrift_multithreaded_worker_function,
                                         NULL,
                                         cores_count,
                                         TRUE,
@@ -170,7 +165,7 @@ thrift_multithreaded_server_init (ThriftMultithreadedServer *tms)
 
 /* initialize the class */
 static void
-thrift_simple_server_class_init (ThriftMultithreadedServerClass *class)
+thrift_multithreaded_server_class_init (ThriftMultithreadedServerClass *class)
 {
   ThriftServerClass *cls = THRIFT_SERVER_CLASS(class);
 

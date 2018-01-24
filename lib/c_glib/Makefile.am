@@ -57,7 +57,8 @@ libthrift_c_glib_la_SOURCES = src/thrift/c_glib/thrift.c \
                               src/thrift/c_glib/transport/thrift_framed_transport.c \
                               src/thrift/c_glib/transport/thrift_memory_buffer.c \
                               src/thrift/c_glib/server/thrift_server.c \
-                              src/thrift/c_glib/server/thrift_simple_server.c
+                              src/thrift/c_glib/server/thrift_simple_server.c \
+                              src/thrift/c_glib/server/thrift_multithreaded_server.c
 
 libthrift_c_glib_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(OPENSSL_INCLUDES)
 libthrift_c_glib_la_LDFLAGS = $(AM_LDFLAGS) $(GLIB_LIBS) $(GOBJECT_LIBS)  $(OPENSSL_LDFLAGS) $(OPENSSL_LIBS) 

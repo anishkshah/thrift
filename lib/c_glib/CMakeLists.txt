@@ -55,6 +55,7 @@ set(thrift_c_glib_SOURCES
     src/thrift/c_glib/transport/thrift_memory_buffer.c
     src/thrift/c_glib/server/thrift_server.c
     src/thrift/c_glib/server/thrift_simple_server.c
+    src/thrift/c_glib/server/thrift_multithreaded_server.c
 )
 
 # If OpenSSL is not found just ignore the OpenSSL stuff

@@ -62,6 +62,17 @@ struct _ThriftMultithreadedServerClass
   ThriftServerClass parent;
 };
 
+typedef struct _ThriftMultithreadedPoolArg ThriftMultithreadedPoolArg;
+
+/**
+ * Thrift Multithreaded pool arg
+ */
+struct _ThriftMultithreadedPoolArg
+{
+	ThriftServer *server;
+	ThriftTransport *transport;
+};
+
 /* used by THRIFT_TYPE_MULTITHREADED_SERVER */
 GType thrift_multithreaded_server_get_type (void);
 
